@@ -46,17 +46,28 @@ impl ProcessManager {
         let stderr = stdout
             .try_clone()
             .context("не удалось подготовить журнал ошибок zapret")?;
+        // let mut command = Command::new("cmd.exe");
+        // command
+        //     .arg("/d")
+        //     .arg("/c")
+        //     .arg("call")
+        //     .arg(&script)
+        //     .current_dir(&self.paths.zapret_dir)
+        //     .stdin(Stdio::null())
+        //     .stdout(Stdio::from(stdout))
+        //     .stderr(Stdio::from(stderr));
+        // hide_window(&mut command);
+        // let mut child = command.spawn().context("не удалось запустить стратегию")?;
         let mut command = Command::new("cmd.exe");
+
         command
-            .arg("/d")
-            .arg("/c")
-            .arg("call")
-            .arg(&script)
+            .args(["/d", "/c"])
+            .raw_arg(format!("call \"{}\"", strategy.file_name))
             .current_dir(&self.paths.zapret_dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(stdout))
-            .stderr(Stdio::from(stderr));
-        hide_window(&mut command);
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+
         let mut child = command.spawn().context("не удалось запустить стратегию")?;
         let deadline = Instant::now() + Duration::from_secs(8);
         let mut early_exit = None;
