@@ -3,6 +3,7 @@ import { AppTheme, AppButton, AppToggle, NavButton } from "theme.slint";
 
 export component MainWindow inherits Window {
     title: "zapret GUI";
+    icon: @image-url("../assets/tray/zapret-on-32.png");
     background: AppTheme.background;
     preferred-width: 440px;
     preferred-height: 368px;
@@ -250,7 +251,7 @@ export component MainWindow inherits Window {
                         height: 224px * root.y-scale; border-radius: 6px * root.uniform-scale; background: AppTheme.surface;
                         VerticalLayout {
                             padding: 12px * root.uniform-scale; spacing: 8px * root.y-scale;
-                            Text { text: "Фильтр игр"; color: AppTheme.text; font-size: 12px * root.font-scale; font-weight: 600; }
+                            Text { text: "Игровой фильтр"; color: AppTheme.text; font-size: 12px * root.font-scale; font-weight: 600; }
                             ComboBox { height: 32px * root.y-scale; model: root.game_modes; current-value <=> root.game_mode; }
                             HorizontalLayout {
                                 height: 32px * root.y-scale; spacing: 10px * root.x-scale;

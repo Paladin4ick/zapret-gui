@@ -2,7 +2,7 @@ use crate::{paths::AppPaths, process};
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::{
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     process::{Command, Stdio},
     sync::{
         Arc,
@@ -48,9 +48,16 @@ impl AutoSelector {
         self.process_id.store(child.id(), Ordering::SeqCst);
         if let Some(mut stdin) = child.stdin.take() {
             stdin
-                .write_all(b"2\n1\n\n")
+                .write_all(b"1\n1\n\n")
                 .context("не удалось передать параметры тесту")?;
         }
+        let stderr_reader = child.stderr.take().map(|mut stderr| {
+            std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+                let _ = stderr.read_to_end(&mut bytes);
+                String::from_utf8_lossy(&bytes).into_owned()
+            })
+        });
         let stdout = child
             .stdout
             .take()
@@ -58,13 +65,24 @@ impl AutoSelector {
         let progress = Regex::new(r"\[(\d+)\s*/\s*(\d+)\]")?;
         let best = Regex::new(r"(?i)Best (?:config|strategy):\s*(.+?)\s*$")?;
         let mut best_strategy = None;
-        for line in BufReader::new(stdout).lines() {
+        let mut reader = BufReader::new(stdout);
+        let mut bytes = Vec::new();
+        loop {
+            bytes.clear();
+            let count = reader
+                .read_until(b'\n', &mut bytes)
+                .context("не удалось прочитать вывод теста")?;
+            if count == 0 {
+                break;
+            }
             if self.cancelled.load(Ordering::SeqCst) {
                 let _ = process::kill_process_tree(child.id());
                 self.process_id.store(0, Ordering::SeqCst);
                 bail!("тестирование отменено");
             }
-            let line = line.context("не удалось прочитать вывод теста")?;
+            let line = String::from_utf8_lossy(&bytes)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
             if let Some(captures) = progress.captures(&line) {
                 let current = captures[1].parse().unwrap_or_default();
                 let total = captures[2].parse().unwrap_or_default();
@@ -79,6 +97,13 @@ impl AutoSelector {
             .wait()
             .context("не удалось дождаться завершения теста")?;
         self.process_id.store(0, Ordering::SeqCst);
+        if let Some(reader) = stderr_reader
+            && let Ok(stderr) = reader.join()
+        {
+            for line in stderr.lines().filter(|line| !line.trim().is_empty()) {
+                notify(TestEvent::Log(format!("[stderr] {line}")));
+            }
+        }
         if self.cancelled.load(Ordering::SeqCst) {
             bail!("тестирование отменено");
         }

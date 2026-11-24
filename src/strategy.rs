@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use regex::Regex;
 use std::{fs, path::Path};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -41,6 +42,38 @@ pub fn scan(zapret_dir: &Path) -> Result<Vec<Strategy>> {
     }
     strategies.sort_by_key(|strategy| natural_key(&strategy.name));
     Ok(strategies)
+}
+
+pub fn prepare_background_launch(zapret_dir: &Path) -> Result<usize> {
+    if !zapret_dir.is_dir() {
+        return Ok(0);
+    }
+    let start_pattern =
+        Regex::new(r#"(?im)^start\s+("zapret:[^"]*")\s+/min\s+("%BIN%winws\.exe")"#)?;
+    let mut changed = 0;
+    for strategy in scan(zapret_dir)? {
+        let path = zapret_dir.join(strategy.file_name);
+        let source = fs::read_to_string(&path)
+            .with_context(|| format!("не удалось прочитать {}", path.display()))?;
+        let patched = start_pattern.replace_all(&source, "start $1 /b /min $2");
+        if patched != source {
+            fs::write(&path, patched.as_bytes())
+                .with_context(|| format!("не удалось подготовить {}", path.display()))?;
+            changed += 1;
+        }
+    }
+    let test_script = zapret_dir.join("utils/test zapret.ps1");
+    if test_script.is_file() {
+        let source = fs::read_to_string(&test_script)
+            .context("не удалось прочитать тестовый сценарий Flowseal")?;
+        let patched = source.replace("-WindowStyle Minimized", "-WindowStyle Hidden");
+        if patched != source {
+            fs::write(&test_script, patched.as_bytes())
+                .context("не удалось подготовить фоновый запуск тестов")?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
 }
 
 fn natural_key(value: &str) -> String {

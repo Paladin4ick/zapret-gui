@@ -40,6 +40,7 @@ fn main() -> Result<()> {
     }
 
     let paths = AppPaths::discover()?;
+    let _ = strategy::prepare_background_launch(&paths.zapret_dir);
     let config = Rc::new(RefCell::new(AppConfig::load(&paths)));
     let process = ProcessManager::new(paths.clone());
     let strategies = Rc::new(RefCell::new(strategy::scan(&paths.zapret_dir)?));
@@ -158,7 +159,9 @@ fn main() -> Result<()> {
         );
     }
 
-    window.run().context("ошибка цикла интерфейса")?;
+    window.show().context("не удалось показать главное окно")?;
+    slint::run_event_loop_until_quit().context("ошибка цикла интерфейса")?;
+    let _ = window.hide();
     drop(timer);
     drop(tray);
     drop(instance);
@@ -426,8 +429,22 @@ fn wire_callbacks(
     window.on_cancel_test(move || cancel_selector.cancel());
 
     let results_dir = paths.zapret_dir.join("utils/test results");
+    let results_weak = window.as_weak();
     window.on_open_test_results(move || {
-        let _ = Command::new("explorer.exe").arg(&results_dir).spawn();
+        let result = std::fs::create_dir_all(&results_dir)
+            .context("не удалось создать папку отчётов")
+            .and_then(|_| {
+                Command::new("explorer.exe")
+                    .arg(&results_dir)
+                    .spawn()
+                    .context("не удалось открыть папку отчётов")
+                    .map(|_| ())
+            });
+        if let Err(error) = result
+            && let Some(window) = results_weak.upgrade()
+        {
+            window.set_error_text(error.to_string().into());
+        }
     });
 }
 
@@ -449,7 +466,16 @@ fn drain_events(
                 window.set_busy(false);
                 match result {
                     Ok(running) => set_running_state(window, &tray.borrow(), running),
-                    Err(error) => window.set_error_text(error.into()),
+                    Err(error) => {
+                        append_log(window, format!("Ошибка запуска: {error}"));
+                        window.set_error_text(
+                            error
+                                .lines()
+                                .next()
+                                .unwrap_or("Не удалось запустить zapret")
+                                .into(),
+                        );
+                    }
                 }
             }
             UiEvent::UpdateProgress(progress) => {
@@ -472,6 +498,7 @@ fn drain_events(
                         window.set_version_text(format!("Zapret {}", result.version).into());
                         if result.changed {
                             let _ = lists::ensure_user_lists(&paths.zapret_dir);
+                            let _ = strategy::prepare_background_launch(&paths.zapret_dir);
                             if let Ok(found) = strategy::scan(&paths.zapret_dir) {
                                 *strategies.borrow_mut() = found;
                                 let _ =

@@ -1,6 +1,7 @@
 use crate::{paths::AppPaths, strategy::Strategy};
 use anyhow::{Context, Result, bail};
 use std::{
+    fs::{self, OpenOptions},
     path::Path,
     process::{Command, Stdio},
     thread,
@@ -35,6 +36,16 @@ impl ProcessManager {
         if !script.is_file() {
             bail!("файл стратегии не найден: {}", strategy.file_name);
         }
+        let log_path = self.paths.app_dir.join("zapret-launch.log");
+        let stdout = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&log_path)
+            .context("не удалось открыть журнал запуска zapret")?;
+        let stderr = stdout
+            .try_clone()
+            .context("не удалось подготовить журнал ошибок zapret")?;
         let mut command = Command::new("cmd.exe");
         command
             .arg("/d")
@@ -43,25 +54,34 @@ impl ProcessManager {
             .arg(format!("\"{}\"", script.display()))
             .current_dir(&self.paths.zapret_dir)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr));
         hide_window(&mut command);
         let mut child = command.spawn().context("не удалось запустить стратегию")?;
         let deadline = Instant::now() + Duration::from_secs(8);
+        let mut early_exit = None;
         while Instant::now() < deadline {
             if self.is_running() {
                 return Ok(());
             }
-            if let Some(status) = child
-                .try_wait()
-                .context("не удалось проверить запуск стратегии")?
-                && !status.success()
-            {
-                bail!("сценарий стратегии завершился с кодом {status}");
+            if early_exit.is_none() {
+                early_exit = child
+                    .try_wait()
+                    .context("не удалось проверить запуск стратегии")?;
             }
             thread::sleep(Duration::from_millis(200));
         }
-        bail!("winws.exe не появился после запуска стратегии")
+        let details = fs::read_to_string(&log_path).unwrap_or_default();
+        if let Some(status) = early_exit {
+            bail!(
+                "сценарий стратегии завершился с кодом {status}\n{}",
+                details.trim()
+            );
+        }
+        bail!(
+            "winws.exe не появился после запуска стратегии\n{}",
+            details.trim()
+        )
     }
 
     pub fn stop(&self) -> Result<()> {
