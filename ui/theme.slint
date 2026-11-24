@@ -21,9 +21,12 @@ export component AppButton inherits Rectangle {
     in property <string> text;
     in property <bool> enabled: true;
     in property <bool> accent: false;
+    in property <float> x-scale: 1;
+    in property <float> y-scale: 1;
+    in property <float> font-scale: 1;
     callback clicked;
-    height: 34px;
-    border-radius: 5px;
+    height: 34px * root.y-scale;
+    border-radius: 5px * min(root.x-scale, root.y-scale);
     background: !root.enabled ? AppTheme.inactive : root.accent
         ? (area.pressed ? AppTheme.accent : area.has-hover ? AppTheme.accent-hover : AppTheme.accent)
         : (area.pressed ? AppTheme.outline : area.has-hover ? AppTheme.border : AppTheme.surface);
@@ -33,7 +36,7 @@ export component AppButton inherits Rectangle {
     Text {
         text: root.text;
         color: root.enabled ? AppTheme.text : AppTheme.secondary;
-        font-size: 12px;
+        font-size: 12px * root.font-scale;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -45,18 +48,19 @@ export component AppButton inherits Rectangle {
 
 export component AppToggle inherits Rectangle {
     in-out property <bool> checked;
+    in property <float> scale: 1;
     callback toggled(bool);
-    width: 36px;
-    height: 20px;
-    border-radius: 10px;
+    width: 36px * root.scale;
+    height: 20px * root.scale;
+    border-radius: 10px * root.scale;
     background: root.checked ? AppTheme.accent : AppTheme.inactive;
     animate background { duration: 160ms; }
     Rectangle {
-        x: root.checked ? parent.width - self.width - 3px : 3px;
-        y: 3px;
-        width: 14px;
-        height: 14px;
-        border-radius: 7px;
+        x: root.checked ? parent.width - self.width - 3px * root.scale : 3px * root.scale;
+        y: 3px * root.scale;
+        width: 14px * root.scale;
+        height: 14px * root.scale;
+        border-radius: 7px * root.scale;
         background: AppTheme.white;
         animate x { duration: 160ms; easing: ease-in-out; }
     }
@@ -72,14 +76,17 @@ export component NavButton inherits Rectangle {
     in property <image> icon;
     in property <string> hint;
     in property <bool> active;
+    in property <float> x-scale: 1;
+    in property <float> y-scale: 1;
+    in property <float> font-scale: 1;
     callback clicked;
-    width: 36px;
-    height: 36px;
-    border-radius: 5px;
+    width: 36px * root.x-scale;
+    height: 36px * root.y-scale;
+    border-radius: 5px * min(root.x-scale, root.y-scale);
     background: root.active ? AppTheme.selected : area.has-hover ? AppTheme.surface : transparent;
     Image {
-        width: 18px;
-        height: 18px;
+        width: 18px * root.font-scale;
+        height: 18px * root.font-scale;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         source: root.icon;
@@ -87,17 +94,17 @@ export component NavButton inherits Rectangle {
     }
     area := TouchArea { clicked => { root.clicked(); } }
     if area.has-hover: Rectangle {
-        x: root.width + 6px;
-        y: 6px;
-        width: tooltip-text.preferred-width + 14px;
-        height: 25px;
-        border-radius: 4px;
+        x: root.width + 6px * root.x-scale;
+        y: 6px * root.y-scale;
+        width: tooltip-text.preferred-width + 14px * root.x-scale;
+        height: 25px * root.y-scale;
+        border-radius: 4px * min(root.x-scale, root.y-scale);
         background: AppTheme.outline;
         z: 100;
         tooltip-text := Text {
             text: root.hint;
             color: AppTheme.text;
-            font-size: 11px;
+            font-size: 11px * root.font-scale;
             horizontal-alignment: center;
             vertical-alignment: center;
         }

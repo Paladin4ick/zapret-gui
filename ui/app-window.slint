@@ -10,6 +10,14 @@ export component MainWindow inherits Window {
     min-height: 350px;
     default-font-family: "Segoe UI";
 
+    // Horizontal and vertical dimensions follow the window independently.
+    // Font growth is deliberately capped so labels remain compact at very large sizes.
+    private property <float> x-scale: min(max(root.width / 440px, 0.95), 2.0);
+    private property <float> y-scale: min(max(root.height / 368px, 0.95), 2.0);
+    private property <float> font-scale: min(max((root.x-scale + root.y-scale) / 2, 0.95), 1.55);
+    private property <float> uniform-scale: min(root.x-scale, root.y-scale);
+    default-font-size: 12px * root.font-scale;
+
     in property <bool> zapret_running: false;
     in property <string> gui_version: "0.1.0";
     in property <bool> busy: false;
@@ -55,34 +63,48 @@ export component MainWindow inherits Window {
     callback quit_requested();
 
     HorizontalLayout {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
         spacing: 0px;
         sidebar := Rectangle {
-            width: 52px;
+            width: 52px * root.x-scale;
             background: AppTheme.sidebar;
             VerticalLayout {
-                padding-top: 11px;
-                padding-bottom: 10px;
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                padding-left: 8px * root.x-scale;
+                padding-right: 8px * root.x-scale;
+                padding-top: 11px * root.y-scale;
+                padding-bottom: 10px * root.y-scale;
                 alignment: start;
-                spacing: 8px;
+                spacing: 8px * root.y-scale;
                 NavButton {
+                    x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                     icon: root.page == 0 ? @image-url("../assets/icons/house-active.svg") : @image-url("../assets/icons/house-default.svg");
                     hint: "Главная";
                     active: root.page == 0;
                     clicked => { root.page = 0; }
                 }
                 NavButton {
+                    x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                     icon: root.page == 1 ? @image-url("../assets/icons/scroll-text-active.svg") : @image-url("../assets/icons/scroll-text-default.svg");
                     hint: "Списки";
                     active: root.page == 1;
                     clicked => { root.page = 1; }
                 }
                 NavButton {
+                    x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                     icon: root.page == 2 ? @image-url("../assets/icons/settings-active.svg") : @image-url("../assets/icons/settings-default.svg");
                     hint: "Настройки";
                     active: root.page == 2;
                     clicked => { root.page = 2; }
                 }
                 NavButton {
+                    x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                     icon: root.page == 3 ? @image-url("../assets/icons/route-active.svg") : @image-url("../assets/icons/route-default.svg");
                     hint: "Журнал";
                     active: root.page == 3;
@@ -92,7 +114,7 @@ export component MainWindow inherits Window {
                 Text {
                     text: "v" + root.gui_version;
                     color: AppTheme.secondary;
-                    font-size: 9px;
+                    font-size: 9px * root.font-scale;
                     horizontal-alignment: center;
                 }
             }
@@ -102,25 +124,25 @@ export component MainWindow inherits Window {
             horizontal-stretch: 1;
             background: AppTheme.background;
             if root.page == 0: home := VerticalLayout {
-                padding: 18px;
-                spacing: 12px;
-                Text { text: "Главная"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                padding: 18px * root.uniform-scale;
+                spacing: 12px * root.y-scale;
+                Text { text: "Главная"; color: AppTheme.text; font-size: 20px * root.font-scale; font-weight: 600; }
                 Rectangle {
-                    height: 100px;
-                    border-radius: 6px;
+                    height: 100px * root.y-scale;
+                    border-radius: 6px * root.uniform-scale;
                     background: AppTheme.surface;
                     HorizontalLayout {
-                        padding: 16px;
-                        spacing: 18px;
+                        padding: 16px * root.uniform-scale;
+                        spacing: 18px * root.x-scale;
                         alignment: center;
                         power := Rectangle {
-                            width: 68px;
-                            height: 68px;
-                            border-radius: 34px;
+                            width: 68px * root.uniform-scale;
+                            height: 68px * root.uniform-scale;
+                            border-radius: 34px * root.uniform-scale;
                             background: root.zapret_running ? AppTheme.accent : AppTheme.inactive;
                             animate background { duration: 180ms; }
                             Image {
-                                width: 26px; height: 26px;
+                                width: 26px * root.uniform-scale; height: 26px * root.uniform-scale;
                                 x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
                                 source: root.zapret_running ? @image-url("../assets/icons/power-on.svg") : @image-url("../assets/icons/power-off.svg");
                             }
@@ -129,7 +151,7 @@ export component MainWindow inherits Window {
                         Text {
                             text: root.busy ? "Выполняется операция…" : root.zapret_running ? "Zapret включён" : "Zapret выключен";
                             color: AppTheme.text;
-                            font-size: 15px;
+                            font-size: 15px * root.font-scale;
                             font-weight: 600;
                             vertical-alignment: center;
                         }
@@ -137,15 +159,15 @@ export component MainWindow inherits Window {
                 }
                 Rectangle {
                     vertical-stretch: 1;
-                    min-height: 116px;
-                    border-radius: 6px;
+                    min-height: 116px * root.y-scale;
+                    border-radius: 6px * root.uniform-scale;
                     background: AppTheme.surface;
                     VerticalLayout {
-                        padding: 12px;
-                        spacing: 8px;
-                        Text { text: "Стратегия"; color: AppTheme.secondary; font-size: 10px; }
+                        padding: 12px * root.uniform-scale;
+                        spacing: 8px * root.y-scale;
+                        Text { text: "Стратегия"; color: AppTheme.secondary; font-size: 10px * root.font-scale; }
                         HorizontalLayout {
-                            height: 34px; spacing: 8px;
+                            height: 34px * root.y-scale; spacing: 8px * root.x-scale;
                             ComboBox {
                                 horizontal-stretch: 1;
                                 model: root.strategies;
@@ -154,7 +176,8 @@ export component MainWindow inherits Window {
                                 selected(value) => { root.strategy_selected(value); }
                             }
                             AppButton {
-                                width: 142px;
+                                width: 142px * root.x-scale;
+                                x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                                 text: root.testing ? "Проверка " + root.test_current + "/" + root.test_total : "Автоподбор стратегии";
                                 enabled: !root.busy;
                                 accent: root.testing;
@@ -163,14 +186,15 @@ export component MainWindow inherits Window {
                         }
                         Rectangle { height: 1px; background: AppTheme.border; }
                         HorizontalLayout {
-                            height: 27px;
+                            height: 27px * root.y-scale;
                             VerticalLayout {
-                                spacing: 1px;
-                                Text { text: root.version_text; color: AppTheme.text; font-size: 10px; }
-                                Text { text: root.update_text; color: AppTheme.secondary; font-size: 9px; }
+                                spacing: 1px * root.y-scale;
+                                Text { text: root.version_text; color: AppTheme.text; font-size: 10px * root.font-scale; }
+                                Text { text: root.update_text; color: AppTheme.secondary; font-size: 9px * root.font-scale; }
                             }
                             AppButton {
-                                width: 86px; height: 27px; text: "Проверить";
+                                width: 86px * root.x-scale; height: 27px * root.y-scale; text: "Проверить";
+                                x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                                 enabled: !root.busy && !root.testing;
                                 clicked => { root.check_updates(); }
                             }
@@ -178,39 +202,41 @@ export component MainWindow inherits Window {
                     }
                 }
                 HorizontalLayout {
-                    height: 24px;
-                    Text { text: "Сворачивать в трей"; color: AppTheme.text; font-size: 11px; vertical-alignment: center; }
-                    AppToggle { checked <=> root.minimize_to_tray; toggled(value) => { root.minimize_changed(value); } }
+                    height: 24px * root.y-scale;
+                    Text { text: "Сворачивать в трей"; color: AppTheme.text; font-size: 11px * root.font-scale; vertical-alignment: center; }
+                    AppToggle { scale: root.uniform-scale; checked <=> root.minimize_to_tray; toggled(value) => { root.minimize_changed(value); } }
                 }
                 if root.error_text != "": Text {
-                    text: root.error_text; color: AppTheme.accent-hover; font-size: 10px;
+                    text: root.error_text; color: AppTheme.accent-hover; font-size: 10px * root.font-scale;
                     overflow: elide; horizontal-alignment: center;
                 }
             }
 
             if root.page == 1: lists-page := VerticalLayout {
-                padding: 18px; spacing: 10px;
-                Text { text: "Списки"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                padding: 18px * root.uniform-scale; spacing: 10px * root.y-scale;
+                Text { text: "Списки"; color: AppTheme.text; font-size: 20px * root.font-scale; font-weight: 600; }
                 ComboBox {
-                    height: 34px; model: root.list_titles; current-value <=> root.selected_list;
+                    height: 34px * root.y-scale; model: root.list_titles; current-value <=> root.selected_list;
                     selected(value) => { root.list_selected(value); }
                 }
                 Rectangle {
-                    vertical-stretch: 1; border-radius: 6px; background: AppTheme.surface;
+                    vertical-stretch: 1; border-radius: 6px * root.uniform-scale; background: AppTheme.surface;
                     border-width: 1px; border-color: AppTheme.border;
                     TextEdit {
-                        x: 8px; y: 8px; width: parent.width - 16px; height: parent.height - 16px;
+                        x: 8px * root.x-scale; y: 8px * root.y-scale;
+                        width: parent.width - 16px * root.x-scale; height: parent.height - 16px * root.y-scale;
                         text <=> root.list_content; read-only: !root.list_editable;
                     }
                 }
                 HorizontalLayout {
-                    height: 34px;
+                    height: 34px * root.y-scale;
                     Text {
                         text: root.list_editable ? "Пользовательский список" : "Системный список — только чтение";
-                        color: AppTheme.secondary; font-size: 10px; vertical-alignment: center;
+                        color: AppTheme.secondary; font-size: 10px * root.font-scale; vertical-alignment: center;
                     }
                     AppButton {
-                        width: 96px; text: "Сохранить"; accent: true; enabled: root.list_editable;
+                        width: 96px * root.x-scale; text: "Сохранить"; accent: true; enabled: root.list_editable;
+                        x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                         clicked => { root.save_list(root.list_content); }
                     }
                 }
@@ -218,72 +244,86 @@ export component MainWindow inherits Window {
 
             if root.page == 2: settings-page := ScrollView {
                 VerticalLayout {
-                    padding: 18px; spacing: 10px;
-                    Text { text: "Настройки"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                    padding: 18px * root.uniform-scale; spacing: 10px * root.y-scale;
+                    Text { text: "Настройки"; color: AppTheme.text; font-size: 20px * root.font-scale; font-weight: 600; }
                     Rectangle {
-                        height: 190px; border-radius: 6px; background: AppTheme.surface;
+                        height: 224px * root.y-scale; border-radius: 6px * root.uniform-scale; background: AppTheme.surface;
                         VerticalLayout {
-                            padding: 12px; spacing: 8px;
-                            Text { text: "Фильтр игр"; color: AppTheme.text; font-size: 12px; font-weight: 600; }
-                            ComboBox { height: 32px; model: root.game_modes; current-value <=> root.game_mode; }
+                            padding: 12px * root.uniform-scale; spacing: 8px * root.y-scale;
+                            Text { text: "Фильтр игр"; color: AppTheme.text; font-size: 12px * root.font-scale; font-weight: 600; }
+                            ComboBox { height: 32px * root.y-scale; model: root.game_modes; current-value <=> root.game_mode; }
                             HorizontalLayout {
-                                height: 32px; spacing: 8px;
-                                Text { width: 76px; text: "TCP-порты"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
+                                height: 32px * root.y-scale; spacing: 10px * root.x-scale;
+                                Text { width: 92px * root.x-scale; text: "TCP-порты"; color: AppTheme.secondary; font-size: 10px * root.font-scale; vertical-alignment: center; }
                                 LineEdit { text <=> root.game_tcp; }
                             }
                             HorizontalLayout {
-                                height: 32px; spacing: 8px;
-                                Text { width: 76px; text: "UDP-порты"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
+                                height: 32px * root.y-scale; spacing: 10px * root.x-scale;
+                                Text { width: 92px * root.x-scale; text: "UDP-порты"; color: AppTheme.secondary; font-size: 10px * root.font-scale; vertical-alignment: center; }
                                 LineEdit { text <=> root.game_udp; }
                             }
-                            Text { text: "Режим IPSet"; color: AppTheme.text; font-size: 11px; }
-                            ComboBox { height: 32px; model: root.ipset_modes; current-value <=> root.ipset_mode; }
+                            Text { text: "Режим IPSet"; color: AppTheme.text; font-size: 11px * root.font-scale; }
+                            ComboBox { height: 32px * root.y-scale; model: root.ipset_modes; current-value <=> root.ipset_mode; }
                         }
                     }
                     Rectangle {
-                        height: 76px; border-radius: 6px; background: AppTheme.surface;
+                        height: 76px * root.y-scale; border-radius: 6px * root.uniform-scale; background: AppTheme.surface;
                         VerticalLayout {
-                            padding: 10px; spacing: 8px;
-                            HorizontalLayout { Text { text: "Проверять обновления при запуске"; color: AppTheme.text; font-size: 10px; vertical-alignment: center; } AppToggle { checked <=> root.auto_update; } }
-                            HorizontalLayout { Text { text: "Включать zapret при запуске GUI"; color: AppTheme.text; font-size: 10px; vertical-alignment: center; } AppToggle { checked <=> root.auto_start; } }
-                        }
-                    }
-                    Rectangle {
-                        height: 100px; border-radius: 6px; background: AppTheme.surface;
-                        VerticalLayout {
-                            padding: 10px; spacing: 6px;
-                            Text { text: "Активные fake-файлы"; color: AppTheme.text; font-size: 11px; font-weight: 600; }
+                            padding: 10px * root.uniform-scale; spacing: 8px * root.y-scale;
                             HorizontalLayout {
-                                height: 30px; spacing: 8px;
-                                Text { width: 76px; text: "Discord UDP"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
-                                ComboBox { model: root.fake_files; current-value <=> root.discord_fake; }
+                                height: 24px * root.y-scale;
+                                Text { text: "Проверять обновления при запуске"; color: AppTheme.text; font-size: 10px * root.font-scale; vertical-alignment: center; }
+                                AppToggle { scale: root.uniform-scale; checked <=> root.auto_update; }
                             }
                             HorizontalLayout {
-                                height: 30px; spacing: 8px;
-                                Text { width: 76px; text: "GameFilter"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
-                                ComboBox { model: root.fake_files; current-value <=> root.game_fake; }
+                                height: 24px * root.y-scale;
+                                Text { text: "Включать zapret при запуске GUI"; color: AppTheme.text; font-size: 10px * root.font-scale; vertical-alignment: center; }
+                                AppToggle { scale: root.uniform-scale; checked <=> root.auto_start; }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 112px * root.y-scale; border-radius: 6px * root.uniform-scale; background: AppTheme.surface;
+                        VerticalLayout {
+                            padding: 10px * root.uniform-scale; spacing: 7px * root.y-scale;
+                            Text { text: "Активные fake-файлы"; color: AppTheme.text; font-size: 11px * root.font-scale; font-weight: 600; }
+                            HorizontalLayout {
+                                height: 32px * root.y-scale; spacing: 10px * root.x-scale;
+                                Text { width: 92px * root.x-scale; text: "Discord UDP"; color: AppTheme.secondary; font-size: 10px * root.font-scale; vertical-alignment: center; }
+                                ComboBox { height: 32px * root.y-scale; model: root.fake_files; current-value <=> root.discord_fake; }
+                            }
+                            HorizontalLayout {
+                                height: 32px * root.y-scale; spacing: 10px * root.x-scale;
+                                Text { width: 92px * root.x-scale; text: "GameFilter"; color: AppTheme.secondary; font-size: 10px * root.font-scale; vertical-alignment: center; }
+                                ComboBox { height: 32px * root.y-scale; model: root.fake_files; current-value <=> root.game_fake; }
                             }
                         }
                     }
                     AppButton {
-                        height: 34px; text: "Сохранить настройки"; accent: true;
+                        height: 36px * root.y-scale; text: "Сохранить настройки"; accent: true;
+                        x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
                         clicked => { root.save_settings(root.game_mode, root.game_tcp, root.game_udp, root.ipset_mode, root.auto_update, root.auto_start, root.discord_fake, root.game_fake); }
                     }
                 }
             }
 
             if root.page == 3: logs-page := VerticalLayout {
-                padding: 18px; spacing: 10px;
-                Text { text: "Журнал"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                padding: 18px * root.uniform-scale; spacing: 10px * root.y-scale;
+                Text { text: "Журнал"; color: AppTheme.text; font-size: 20px * root.font-scale; font-weight: 600; }
                 Rectangle {
-                    vertical-stretch: 1; border-radius: 6px; background: AppTheme.surface;
+                    vertical-stretch: 1; border-radius: 6px * root.uniform-scale; background: AppTheme.surface;
                     border-width: 1px; border-color: AppTheme.border;
                     TextEdit {
-                        x: 8px; y: 8px; width: parent.width - 16px; height: parent.height - 16px;
+                        x: 8px * root.x-scale; y: 8px * root.y-scale;
+                        width: parent.width - 16px * root.x-scale; height: parent.height - 16px * root.y-scale;
                         text: root.log_text; read-only: true;
                     }
                 }
-                AppButton { height: 34px; text: "Открыть отчёты тестирования"; clicked => { root.open_test_results(); } }
+                AppButton {
+                    height: 34px * root.y-scale; text: "Открыть отчёты тестирования";
+                    x-scale: root.x-scale; y-scale: root.y-scale; font-scale: root.font-scale;
+                    clicked => { root.open_test_results(); }
+                }
             }
         }
     }
