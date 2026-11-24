@@ -1,0 +1,290 @@
+import { ComboBox, LineEdit, TextEdit, ScrollView } from "std-widgets.slint";
+import { AppTheme, AppButton, AppToggle, NavButton } from "theme.slint";
+
+export component MainWindow inherits Window {
+    title: "zapret GUI";
+    background: AppTheme.background;
+    preferred-width: 440px;
+    preferred-height: 368px;
+    min-width: 420px;
+    min-height: 350px;
+    default-font-family: "Segoe UI";
+
+    in property <bool> zapret_running: false;
+    in property <string> gui_version: "0.1.0";
+    in property <bool> busy: false;
+    in property <bool> testing: false;
+    in property <int> test_current: 0;
+    in property <int> test_total: 0;
+    in property <[string]> strategies;
+    in-out property <string> selected_strategy: "";
+    in-out property <bool> minimize_to_tray: true;
+    in property <string> version_text: "Zapret не установлен";
+    in property <string> update_text: "Проверка обновлений…";
+    in property <string> error_text: "";
+    in-out property <int> page: 0;
+
+    in property <[string]> list_titles;
+    in-out property <string> selected_list: "";
+    in-out property <string> list_content: "";
+    in property <bool> list_editable: false;
+
+    in property <[string]> game_modes: ["Отключён", "TCP и UDP", "Только TCP", "Только UDP"];
+    in-out property <string> game_mode: "Отключён";
+    in-out property <string> game_tcp: "1024-65535";
+    in-out property <string> game_udp: "1024-65535";
+    in property <[string]> ipset_modes: ["Загруженный", "Без IPSet", "Любой IP"];
+    in-out property <string> ipset_mode: "Загруженный";
+    in-out property <bool> auto_update: true;
+    in-out property <bool> auto_start: false;
+    in property <[string]> fake_files;
+    in-out property <string> discord_fake: "";
+    in-out property <string> game_fake: "";
+    in property <string> log_text: "";
+
+    callback toggle_zapret();
+    callback strategy_selected(string);
+    callback auto_select();
+    callback cancel_test();
+    callback check_updates();
+    callback minimize_changed(bool);
+    callback list_selected(string);
+    callback save_list(string);
+    callback save_settings(string, string, string, string, bool, bool, string, string);
+    callback open_test_results();
+    callback quit_requested();
+
+    HorizontalLayout {
+        spacing: 0px;
+        sidebar := Rectangle {
+            width: 52px;
+            background: AppTheme.sidebar;
+            VerticalLayout {
+                padding-top: 11px;
+                padding-bottom: 10px;
+                alignment: start;
+                spacing: 8px;
+                NavButton {
+                    icon: root.page == 0 ? @image-url("../assets/icons/house-active.svg") : @image-url("../assets/icons/house-default.svg");
+                    hint: "Главная";
+                    active: root.page == 0;
+                    clicked => { root.page = 0; }
+                }
+                NavButton {
+                    icon: root.page == 1 ? @image-url("../assets/icons/scroll-text-active.svg") : @image-url("../assets/icons/scroll-text-default.svg");
+                    hint: "Списки";
+                    active: root.page == 1;
+                    clicked => { root.page = 1; }
+                }
+                NavButton {
+                    icon: root.page == 2 ? @image-url("../assets/icons/settings-active.svg") : @image-url("../assets/icons/settings-default.svg");
+                    hint: "Настройки";
+                    active: root.page == 2;
+                    clicked => { root.page = 2; }
+                }
+                NavButton {
+                    icon: root.page == 3 ? @image-url("../assets/icons/route-active.svg") : @image-url("../assets/icons/route-default.svg");
+                    hint: "Журнал";
+                    active: root.page == 3;
+                    clicked => { root.page = 3; }
+                }
+                Rectangle { vertical-stretch: 1; background: transparent; }
+                Text {
+                    text: "v" + root.gui_version;
+                    color: AppTheme.secondary;
+                    font-size: 9px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: AppTheme.background;
+            if root.page == 0: home := VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+                Text { text: "Главная"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                Rectangle {
+                    height: 100px;
+                    border-radius: 6px;
+                    background: AppTheme.surface;
+                    HorizontalLayout {
+                        padding: 16px;
+                        spacing: 18px;
+                        alignment: center;
+                        power := Rectangle {
+                            width: 68px;
+                            height: 68px;
+                            border-radius: 34px;
+                            background: root.zapret_running ? AppTheme.accent : AppTheme.inactive;
+                            animate background { duration: 180ms; }
+                            Image {
+                                width: 26px; height: 26px;
+                                x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+                                source: root.zapret_running ? @image-url("../assets/icons/power-on.svg") : @image-url("../assets/icons/power-off.svg");
+                            }
+                            TouchArea { enabled: !root.busy && !root.testing; clicked => { root.toggle_zapret(); } }
+                        }
+                        Text {
+                            text: root.busy ? "Выполняется операция…" : root.zapret_running ? "Zapret включён" : "Zapret выключен";
+                            color: AppTheme.text;
+                            font-size: 15px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                Rectangle {
+                    vertical-stretch: 1;
+                    min-height: 116px;
+                    border-radius: 6px;
+                    background: AppTheme.surface;
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+                        Text { text: "Стратегия"; color: AppTheme.secondary; font-size: 10px; }
+                        HorizontalLayout {
+                            height: 34px; spacing: 8px;
+                            ComboBox {
+                                horizontal-stretch: 1;
+                                model: root.strategies;
+                                current-value <=> root.selected_strategy;
+                                enabled: !root.busy && !root.testing;
+                                selected(value) => { root.strategy_selected(value); }
+                            }
+                            AppButton {
+                                width: 142px;
+                                text: root.testing ? "Проверка " + root.test_current + "/" + root.test_total : "Автоподбор стратегии";
+                                enabled: !root.busy;
+                                accent: root.testing;
+                                clicked => { root.testing ? root.cancel_test() : root.auto_select(); }
+                            }
+                        }
+                        Rectangle { height: 1px; background: AppTheme.border; }
+                        HorizontalLayout {
+                            height: 27px;
+                            VerticalLayout {
+                                spacing: 1px;
+                                Text { text: root.version_text; color: AppTheme.text; font-size: 10px; }
+                                Text { text: root.update_text; color: AppTheme.secondary; font-size: 9px; }
+                            }
+                            AppButton {
+                                width: 86px; height: 27px; text: "Проверить";
+                                enabled: !root.busy && !root.testing;
+                                clicked => { root.check_updates(); }
+                            }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    height: 24px;
+                    Text { text: "Сворачивать в трей"; color: AppTheme.text; font-size: 11px; vertical-alignment: center; }
+                    AppToggle { checked <=> root.minimize_to_tray; toggled(value) => { root.minimize_changed(value); } }
+                }
+                if root.error_text != "": Text {
+                    text: root.error_text; color: AppTheme.accent-hover; font-size: 10px;
+                    overflow: elide; horizontal-alignment: center;
+                }
+            }
+
+            if root.page == 1: lists-page := VerticalLayout {
+                padding: 18px; spacing: 10px;
+                Text { text: "Списки"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                ComboBox {
+                    height: 34px; model: root.list_titles; current-value <=> root.selected_list;
+                    selected(value) => { root.list_selected(value); }
+                }
+                Rectangle {
+                    vertical-stretch: 1; border-radius: 6px; background: AppTheme.surface;
+                    border-width: 1px; border-color: AppTheme.border;
+                    TextEdit {
+                        x: 8px; y: 8px; width: parent.width - 16px; height: parent.height - 16px;
+                        text <=> root.list_content; read-only: !root.list_editable;
+                    }
+                }
+                HorizontalLayout {
+                    height: 34px;
+                    Text {
+                        text: root.list_editable ? "Пользовательский список" : "Системный список — только чтение";
+                        color: AppTheme.secondary; font-size: 10px; vertical-alignment: center;
+                    }
+                    AppButton {
+                        width: 96px; text: "Сохранить"; accent: true; enabled: root.list_editable;
+                        clicked => { root.save_list(root.list_content); }
+                    }
+                }
+            }
+
+            if root.page == 2: settings-page := ScrollView {
+                VerticalLayout {
+                    padding: 18px; spacing: 10px;
+                    Text { text: "Настройки"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                    Rectangle {
+                        height: 190px; border-radius: 6px; background: AppTheme.surface;
+                        VerticalLayout {
+                            padding: 12px; spacing: 8px;
+                            Text { text: "Фильтр игр"; color: AppTheme.text; font-size: 12px; font-weight: 600; }
+                            ComboBox { height: 32px; model: root.game_modes; current-value <=> root.game_mode; }
+                            HorizontalLayout {
+                                height: 32px; spacing: 8px;
+                                Text { width: 76px; text: "TCP-порты"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
+                                LineEdit { text <=> root.game_tcp; }
+                            }
+                            HorizontalLayout {
+                                height: 32px; spacing: 8px;
+                                Text { width: 76px; text: "UDP-порты"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
+                                LineEdit { text <=> root.game_udp; }
+                            }
+                            Text { text: "Режим IPSet"; color: AppTheme.text; font-size: 11px; }
+                            ComboBox { height: 32px; model: root.ipset_modes; current-value <=> root.ipset_mode; }
+                        }
+                    }
+                    Rectangle {
+                        height: 76px; border-radius: 6px; background: AppTheme.surface;
+                        VerticalLayout {
+                            padding: 10px; spacing: 8px;
+                            HorizontalLayout { Text { text: "Проверять обновления при запуске"; color: AppTheme.text; font-size: 10px; vertical-alignment: center; } AppToggle { checked <=> root.auto_update; } }
+                            HorizontalLayout { Text { text: "Включать zapret при запуске GUI"; color: AppTheme.text; font-size: 10px; vertical-alignment: center; } AppToggle { checked <=> root.auto_start; } }
+                        }
+                    }
+                    Rectangle {
+                        height: 100px; border-radius: 6px; background: AppTheme.surface;
+                        VerticalLayout {
+                            padding: 10px; spacing: 6px;
+                            Text { text: "Активные fake-файлы"; color: AppTheme.text; font-size: 11px; font-weight: 600; }
+                            HorizontalLayout {
+                                height: 30px; spacing: 8px;
+                                Text { width: 76px; text: "Discord UDP"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
+                                ComboBox { model: root.fake_files; current-value <=> root.discord_fake; }
+                            }
+                            HorizontalLayout {
+                                height: 30px; spacing: 8px;
+                                Text { width: 76px; text: "GameFilter"; color: AppTheme.secondary; font-size: 10px; vertical-alignment: center; }
+                                ComboBox { model: root.fake_files; current-value <=> root.game_fake; }
+                            }
+                        }
+                    }
+                    AppButton {
+                        height: 34px; text: "Сохранить настройки"; accent: true;
+                        clicked => { root.save_settings(root.game_mode, root.game_tcp, root.game_udp, root.ipset_mode, root.auto_update, root.auto_start, root.discord_fake, root.game_fake); }
+                    }
+                }
+            }
+
+            if root.page == 3: logs-page := VerticalLayout {
+                padding: 18px; spacing: 10px;
+                Text { text: "Журнал"; color: AppTheme.text; font-size: 20px; font-weight: 600; }
+                Rectangle {
+                    vertical-stretch: 1; border-radius: 6px; background: AppTheme.surface;
+                    border-width: 1px; border-color: AppTheme.border;
+                    TextEdit {
+                        x: 8px; y: 8px; width: parent.width - 16px; height: parent.height - 16px;
+                        text: root.log_text; read-only: true;
+                    }
+                }
+                AppButton { height: 34px; text: "Открыть отчёты тестирования"; clicked => { root.open_test_results(); } }
+            }
+        }
+    }
+}

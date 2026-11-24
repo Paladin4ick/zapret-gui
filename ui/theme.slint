@@ -1,0 +1,106 @@
+export global AppTheme {
+    in property <color> background: #141518;
+    in property <color> sidebar: #191a1e;
+    in property <color> surface: #1e2025;
+    in property <color> border: #2b2e35;
+    in property <color> outline: #35373e;
+    in property <color> accent: #a6192e;
+    in property <color> accent-hover: #d32f45;
+    in property <color> selected: #302128;
+    in property <color> selected-text: #e8dadf;
+    in property <color> inactive: #303239;
+    in property <color> inactive-icon: #454850;
+    in property <color> text: #d8dadf;
+    in property <color> secondary: #858891;
+    in property <color> navigation: #a6a8af;
+    in property <color> power-inactive: #b4b7bf;
+    in property <color> success: #69a58a;
+    in property <color> white: #ffffff;
+}
+export component AppButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    in property <bool> accent: false;
+    callback clicked;
+    height: 34px;
+    border-radius: 5px;
+    background: !root.enabled ? AppTheme.inactive : root.accent
+        ? (area.pressed ? AppTheme.accent : area.has-hover ? AppTheme.accent-hover : AppTheme.accent)
+        : (area.pressed ? AppTheme.outline : area.has-hover ? AppTheme.border : AppTheme.surface);
+    border-width: root.accent ? 0px : 1px;
+    border-color: AppTheme.border;
+    animate background { duration: 140ms; }
+    Text {
+        text: root.text;
+        color: root.enabled ? AppTheme.text : AppTheme.secondary;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    area := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppToggle inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled(bool);
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: root.checked ? AppTheme.accent : AppTheme.inactive;
+    animate background { duration: 160ms; }
+    Rectangle {
+        x: root.checked ? parent.width - self.width - 3px : 3px;
+        y: 3px;
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        background: AppTheme.white;
+        animate x { duration: 160ms; easing: ease-in-out; }
+    }
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+export component NavButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> hint;
+    in property <bool> active;
+    callback clicked;
+    width: 36px;
+    height: 36px;
+    border-radius: 5px;
+    background: root.active ? AppTheme.selected : area.has-hover ? AppTheme.surface : transparent;
+    Image {
+        width: 18px;
+        height: 18px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        source: root.icon;
+        image-fit: contain;
+    }
+    area := TouchArea { clicked => { root.clicked(); } }
+    if area.has-hover: Rectangle {
+        x: root.width + 6px;
+        y: 6px;
+        width: tooltip-text.preferred-width + 14px;
+        height: 25px;
+        border-radius: 4px;
+        background: AppTheme.outline;
+        z: 100;
+        tooltip-text := Text {
+            text: root.hint;
+            color: AppTheme.text;
+            font-size: 11px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
