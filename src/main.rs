@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::{
     cell::RefCell,
-    process::Command,
     rc::Rc,
     sync::mpsc::{self, Receiver, Sender},
     thread,
@@ -79,16 +78,18 @@ fn main() -> Result<()> {
     let close_paths = paths.clone();
     let close_window = window.as_weak();
     window.window().on_close_requested(move || {
-        if should_minimize.borrow().minimize_to_tray {
-            return slint::CloseRequestResponse::HideWindow;
-        }
         if let Some(window) = close_window.upgrade() {
             let size = window.window().size();
             let scale = window.window().scale_factor().max(0.1);
             let mut settings = should_minimize.borrow().clone();
+            settings.minimize_to_tray = window.get_minimize_to_tray();
             settings.window_width = size.width as f32 / scale;
             settings.window_height = size.height as f32 / scale;
             let _ = settings.save(&close_paths);
+            *should_minimize.borrow_mut() = settings;
+            if window.get_minimize_to_tray() {
+                return slint::CloseRequestResponse::HideWindow;
+            }
         }
         let _ = close_process.stop();
         let _ = slint::quit_event_loop();
@@ -434,11 +435,9 @@ fn wire_callbacks(
         let result = std::fs::create_dir_all(&results_dir)
             .context("не удалось создать папку отчётов")
             .and_then(|_| {
-                Command::new("explorer.exe")
-                    .arg(&results_dir)
-                    .spawn()
-                    .context("не удалось открыть папку отчётов")
-                    .map(|_| ())
+                let canonical = std::fs::canonicalize(&results_dir)
+                    .context("не удалось определить путь папки отчётов")?;
+                open::that_detached(canonical).context("не удалось открыть папку отчётов")
             });
         if let Err(error) = result
             && let Some(window) = results_weak.upgrade()

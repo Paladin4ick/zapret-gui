@@ -49,9 +49,9 @@ impl ProcessManager {
         let mut command = Command::new("cmd.exe");
         command
             .arg("/d")
-            .arg("/s")
             .arg("/c")
-            .arg(format!("\"{}\"", script.display()))
+            .arg("call")
+            .arg(&script)
             .current_dir(&self.paths.zapret_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::from(stdout))
@@ -71,7 +71,9 @@ impl ProcessManager {
             }
             thread::sleep(Duration::from_millis(200));
         }
-        let details = fs::read_to_string(&log_path).unwrap_or_default();
+        let details = fs::read(&log_path)
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default();
         if let Some(status) = early_exit {
             bail!(
                 "сценарий стратегии завершился с кодом {status}\n{}",
