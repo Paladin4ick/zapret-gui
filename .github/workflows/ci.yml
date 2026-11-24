@@ -26,4 +26,3 @@ jobs:
           name: zapret-gui-windows-x86_64
           path: target/release/zapret-gui.exe
           if-no-files-found: error
-
