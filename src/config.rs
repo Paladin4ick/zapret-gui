@@ -8,6 +8,7 @@ use std::fs;
 pub struct AppConfig {
     pub selected_strategy: Option<String>,
     pub minimize_to_tray: bool,
+    pub auto_start_app: bool,
     pub auto_start_zapret: bool,
     pub auto_update: bool,
     pub game_filter_mode: String,
@@ -134,6 +135,7 @@ impl Default for AppConfig {
         Self {
             selected_strategy: None,
             minimize_to_tray: true,
+            auto_start_app: true,
             auto_start_zapret: false,
             auto_update: true,
             game_filter_mode: "disabled".into(),

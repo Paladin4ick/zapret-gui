@@ -48,11 +48,13 @@ export component AppButton inherits Rectangle {
 
 export component AppToggle inherits Rectangle {
     in-out property <bool> checked;
+    in property <bool> enabled: true;
     in property <float> scale: 1;
     callback toggled(bool);
     width: 36px * root.scale;
     height: 20px * root.scale;
     border-radius: 10px * root.scale;
+    opacity: root.enabled ? 1 : 0.45;
     background: root.checked ? AppTheme.accent : AppTheme.inactive;
     animate background { duration: 160ms; }
     Rectangle {
@@ -65,6 +67,7 @@ export component AppToggle inherits Rectangle {
         animate x { duration: 160ms; easing: ease-in-out; }
     }
     TouchArea {
+        enabled: root.enabled;
         clicked => {
             root.checked = !root.checked;
             root.toggled(root.checked);
@@ -76,13 +79,12 @@ export component NavButton inherits Rectangle {
     in property <image> icon;
     in property <string> hint;
     in property <bool> active;
-    in property <float> x-scale: 1;
-    in property <float> y-scale: 1;
+    in property <float> scale: 1;
     in property <float> font-scale: 1;
     callback clicked;
-    width: 36px * root.x-scale;
-    height: 36px * root.y-scale;
-    border-radius: 5px * min(root.x-scale, root.y-scale);
+    width: 32px * root.scale;
+    height: 32px * root.scale;
+    border-radius: 5px * root.scale;
     background: root.active ? AppTheme.selected : area.has-hover ? AppTheme.surface : transparent;
     Image {
         width: 18px * root.font-scale;
@@ -94,11 +96,11 @@ export component NavButton inherits Rectangle {
     }
     area := TouchArea { clicked => { root.clicked(); } }
     if area.has-hover: Rectangle {
-        x: root.width + 6px * root.x-scale;
-        y: 6px * root.y-scale;
-        width: tooltip-text.preferred-width + 14px * root.x-scale;
-        height: 25px * root.y-scale;
-        border-radius: 4px * min(root.x-scale, root.y-scale);
+        x: root.width + 6px * root.scale;
+        y: 4px * root.scale;
+        width: tooltip-text.preferred-width + 14px * root.scale;
+        height: 24px * root.scale;
+        border-radius: 4px * root.scale;
         background: AppTheme.outline;
         z: 100;
         tooltip-text := Text {

@@ -15,6 +15,7 @@ use zapret_gui::{
     lists::{self, ListFile},
     paths::AppPaths,
     process::ProcessManager,
+    startup,
     strategy::{self, Strategy},
     tray::{TrayAction, TrayController},
     updater::{UpdateEvent, UpdateResult, Updater},
@@ -32,6 +33,7 @@ enum UiEvent {
 }
 
 fn main() -> Result<()> {
+    let launched_at_startup = std::env::args_os().any(|argument| argument == "--autostart");
     let instance = single_instance::SingleInstance::new("Paladin4ick-zapret-gui")
         .context("не удалось проверить другой экземпляр приложения")?;
     if !instance.is_single() {
@@ -57,6 +59,9 @@ fn main() -> Result<()> {
         &list_files.borrow(),
         process.is_running(),
     );
+    if let Err(error) = startup::sync(config.borrow().auto_start_app, &std::env::current_exe()?) {
+        window.set_error_text(error.to_string().into());
+    }
 
     let tray = Rc::new(RefCell::new(TrayController::new(
         &strategies.borrow(),
@@ -144,14 +149,15 @@ fn main() -> Result<()> {
 
     let update_on_start =
         !paths.zapret_dir.join("service.bat").is_file() || config.borrow().auto_update;
+    let start_zapret = launched_at_startup && config.borrow().auto_start_zapret;
     if update_on_start {
         spawn_update(
             paths.clone(),
             !paths.zapret_dir.join("service.bat").is_file(),
             sender,
-            config.borrow().auto_start_zapret,
+            start_zapret,
         );
-    } else if config.borrow().auto_start_zapret && !process.is_running() {
+    } else if start_zapret && !process.is_running() {
         spawn_toggle(
             process,
             strategies.borrow().clone(),
@@ -160,7 +166,9 @@ fn main() -> Result<()> {
         );
     }
 
-    window.show().context("не удалось показать главное окно")?;
+    if !launched_at_startup || !config.borrow().minimize_to_tray {
+        window.show().context("не удалось показать главное окно")?;
+    }
     slint::run_event_loop_until_quit().context("ошибка цикла интерфейса")?;
     let _ = window.hide();
     drop(timer);
@@ -187,7 +195,8 @@ fn initialize_window(
     );
     window.set_minimize_to_tray(config.minimize_to_tray);
     window.set_auto_update(config.auto_update);
-    window.set_auto_start(config.auto_start_zapret);
+    window.set_auto_start_app(config.auto_start_app);
+    window.set_auto_start_zapret(config.auto_start_zapret);
     window.set_game_mode(game_mode_title(&config.game_filter_mode).into());
     window.set_game_tcp(config.game_filter_tcp.clone().into());
     window.set_game_udp(config.game_filter_udp.clone().into());
@@ -322,6 +331,7 @@ fn wire_callbacks(
 
     let save_list_paths = paths.clone();
     let save_list_files = list_files.clone();
+    let save_list_process = process.clone();
     let save_list_weak = window.as_weak();
     window.on_save_list(move |content| {
         let Some(window) = save_list_weak.upgrade() else {
@@ -337,7 +347,17 @@ fn wire_callbacks(
             return;
         };
         match lists::save(&save_list_paths.zapret_dir, &list, content.as_str()) {
-            Ok(()) => window.set_error_text("Список сохранён".into()),
+            Ok(()) => {
+                window.set_notice_warning(save_list_process.is_running());
+                window.set_notice_text(
+                    if save_list_process.is_running() {
+                        "Список сохранён. Перезапустите zapret для применения"
+                    } else {
+                        "Изменения списка сохранены"
+                    }
+                    .into(),
+                );
+            }
             Err(error) => window.set_error_text(error.to_string().into()),
         }
     });
@@ -345,43 +365,43 @@ fn wire_callbacks(
     let settings_paths = paths.clone();
     let settings_config = config.clone();
     let settings_process = process.clone();
-    let settings_strategies = strategies.clone();
-    let settings_sender = sender.clone();
     let settings_weak = window.as_weak();
     window.on_save_settings(
-        move |mode, tcp, udp, ipset, auto_update, auto_start, discord_fake, game_fake| {
+        move |mode,
+              tcp,
+              udp,
+              ipset,
+              auto_update,
+              auto_start_app,
+              auto_start_zapret,
+              discord_fake,
+              game_fake| {
             let mut settings = settings_config.borrow().clone();
             settings.game_filter_mode = game_mode_value(mode.as_str()).into();
             settings.game_filter_tcp = tcp.into();
             settings.game_filter_udp = udp.into();
             settings.ipset_mode = ipset_mode_value(ipset.as_str()).into();
             settings.auto_update = auto_update;
-            settings.auto_start_zapret = auto_start;
+            settings.auto_start_app = auto_start_app;
+            settings.auto_start_zapret = auto_start_zapret;
             settings.discord_fake = (!discord_fake.is_empty()).then(|| discord_fake.to_string());
             settings.game_fake = (!game_fake.is_empty()).then(|| game_fake.to_string());
             let result = config::apply_flowseal_settings(&settings_paths, &settings)
+                .and_then(|_| startup::sync(settings.auto_start_app, &std::env::current_exe()?))
                 .and_then(|_| settings.save(&settings_paths));
             match result {
                 Ok(()) => {
                     *settings_config.borrow_mut() = settings.clone();
                     if let Some(window) = settings_weak.upgrade() {
-                        window.set_error_text("Настройки сохранены".into());
-                    }
-                    if settings_process.is_running()
-                        && let Some(strategy) = find_selected_strategy(
-                            &settings_strategies.borrow(),
-                            settings.selected_strategy.as_deref(),
-                        )
-                    {
-                        let process = settings_process.clone();
-                        let sender = settings_sender.clone();
-                        thread::spawn(move || {
-                            let result = process
-                                .restart(&strategy)
-                                .map(|_| true)
-                                .map_err(|error| error.to_string());
-                            let _ = sender.send(UiEvent::OperationFinished(result));
-                        });
+                        window.set_notice_warning(settings_process.is_running());
+                        window.set_notice_text(
+                            if settings_process.is_running() {
+                                "Настройки сохранены. Выключите и включите zapret для применения"
+                            } else {
+                                "Настройки сохранены и применены"
+                            }
+                            .into(),
+                        );
                     }
                 }
                 Err(error) => {

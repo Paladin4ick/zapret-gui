@@ -32,6 +32,7 @@ impl ProcessManager {
         if self.is_running() {
             bail!("zapret уже запущен");
         }
+        cleanup_stale_windivert()?;
         let script = self.paths.zapret_dir.join(&strategy.file_name);
         if !script.is_file() {
             bail!("файл стратегии не найден: {}", strategy.file_name);
@@ -46,28 +47,17 @@ impl ProcessManager {
         let stderr = stdout
             .try_clone()
             .context("не удалось подготовить журнал ошибок zapret")?;
-        // let mut command = Command::new("cmd.exe");
-        // command
-        //     .arg("/d")
-        //     .arg("/c")
-        //     .arg("call")
-        //     .arg(&script)
-        //     .current_dir(&self.paths.zapret_dir)
-        //     .stdin(Stdio::null())
-        //     .stdout(Stdio::from(stdout))
-        //     .stderr(Stdio::from(stderr));
-        // hide_window(&mut command);
-        // let mut child = command.spawn().context("не удалось запустить стратегию")?;
         let mut command = Command::new("cmd.exe");
-
         command
-            .args(["/d", "/c"])
-            .raw_arg(format!("call \"{}\"", strategy.file_name))
+            .arg("/d")
+            .arg("/c")
+            .arg("call")
+            .arg(&script)
             .current_dir(&self.paths.zapret_dir)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
-
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr));
+        hide_window(&mut command);
         let mut child = command.spawn().context("не удалось запустить стратегию")?;
         let deadline = Instant::now() + Duration::from_secs(8);
         let mut early_exit = None;
@@ -99,7 +89,7 @@ impl ProcessManager {
 
     pub fn stop(&self) -> Result<()> {
         if !self.is_running() {
-            return Ok(());
+            return cleanup_stale_windivert();
         }
         let mut command = Command::new("taskkill.exe");
         command.args(["/F", "/T", "/IM", "winws.exe"]);
@@ -110,13 +100,55 @@ impl ProcessManager {
         if !status.success() && self.is_running() {
             bail!("taskkill не смог остановить winws.exe");
         }
-        Ok(())
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while self.is_running() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(100));
+        }
+        cleanup_stale_windivert()
     }
 
     pub fn restart(&self, strategy: &Strategy) -> Result<()> {
         self.stop()?;
         self.start(strategy)
     }
+}
+
+fn cleanup_stale_windivert() -> Result<()> {
+    if process_exists("winws.exe") {
+        return Ok(());
+    }
+    for service in ["WinDivert", "WinDivert14"] {
+        if !service_exists(service) {
+            continue;
+        }
+        let mut stop = Command::new("sc.exe");
+        stop.args(["stop", service]);
+        hide_window(&mut stop);
+        let _ = stop.status();
+
+        let mut delete = Command::new("sc.exe");
+        delete.args(["delete", service]);
+        hide_window(&mut delete);
+        let _ = delete.status();
+
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while service_exists(service) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(100));
+        }
+        if service_exists(service) {
+            bail!(
+                "не удалось освободить службу {service}; перезагрузите Windows или закройте другой обходчик"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn service_exists(service_name: &str) -> bool {
+    let mut command = Command::new("sc.exe");
+    command.args(["query", service_name]);
+    hide_window(&mut command);
+    command.status().is_ok_and(|status| status.success())
 }
 
 pub fn process_exists(image_name: &str) -> bool {
