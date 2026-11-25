@@ -21,8 +21,13 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo build --release
+      - name: Prepare portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path target/package/zapret-gui | Out-Null
+          Copy-Item target/release/zapret-gui.exe target/package/zapret-gui/zapret-gui.exe
       - uses: actions/upload-artifact@v4
         with:
           name: zapret-gui-windows-x86_64
-          path: target/release/zapret-gui.exe
+          path: target/package
           if-no-files-found: error

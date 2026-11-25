@@ -20,7 +20,13 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo build --release
+      - name: Create release archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path target/package/zapret-gui | Out-Null
+          Copy-Item target/release/zapret-gui.exe target/package/zapret-gui/zapret-gui.exe
+          Compress-Archive -Path target/package/zapret-gui -DestinationPath target/package/zapret-gui-windows-x86_64.zip
       - uses: softprops/action-gh-release@v2
         with:
-          files: target/release/zapret-gui.exe
+          files: target/package/zapret-gui-windows-x86_64.zip
           generate_release_notes: true
