@@ -145,7 +145,7 @@ impl Default for AppConfig {
             discord_fake: None,
             game_fake: None,
             window_width: 440.0,
-            window_height: 368.0,
+            window_height: 408.0,
         }
     }
 }

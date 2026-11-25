@@ -12,7 +12,9 @@ use std::{
 use zapret_gui::{
     auto_select::{AutoSelector, TestEvent},
     config::{self, AppConfig},
+    instance_signal,
     lists::{self, ListFile},
+    logging,
     paths::AppPaths,
     process::ProcessManager,
     startup,
@@ -37,10 +39,15 @@ fn main() -> Result<()> {
     let instance = single_instance::SingleInstance::new("Paladin4ick-zapret-gui")
         .context("не удалось проверить другой экземпляр приложения")?;
     if !instance.is_single() {
+        let _ = instance_signal::signal_existing();
         return Ok(());
     }
 
+    let (instance_sender, instance_receiver) = mpsc::channel();
+    instance_signal::start_listener(instance_sender)?;
     let paths = AppPaths::discover()?;
+    logging::initialize(&paths.logs_dir)?;
+    logging::write(&paths.logs_dir, "app", "Приложение запущено");
     let _ = strategy::prepare_background_launch(&paths.zapret_dir);
     let config = Rc::new(RefCell::new(AppConfig::load(&paths)));
     let process = ProcessManager::new(paths.clone());
@@ -77,6 +84,21 @@ fn main() -> Result<()> {
         auto_selector.clone(),
         sender.clone(),
     );
+
+    let minimize_window = window.as_weak();
+    window.on_minimize_window(move || {
+        if let Some(window) = minimize_window.upgrade() {
+            window.window().set_minimized(true);
+        }
+    });
+    let maximize_window = window.as_weak();
+    window.on_toggle_maximize(move || {
+        if let Some(window) = maximize_window.upgrade() {
+            let maximized = window.window().is_maximized();
+            window.window().set_maximized(!maximized);
+            window.set_window_maximized(!maximized);
+        }
+    });
 
     let should_minimize = config.clone();
     let close_process = process.clone();
@@ -119,6 +141,10 @@ fn main() -> Result<()> {
             let Some(window) = poll_window.upgrade() else {
                 return;
             };
+            if instance_receiver.try_recv().is_ok() {
+                show_main_window(&window);
+            }
+            window.set_window_maximized(window.window().is_maximized());
             drain_events(
                 &window,
                 &receiver,
@@ -449,18 +475,18 @@ fn wire_callbacks(
     let cancel_selector = selector;
     window.on_cancel_test(move || cancel_selector.cancel());
 
-    let results_dir = paths.zapret_dir.join("utils/test results");
-    let results_weak = window.as_weak();
-    window.on_open_test_results(move || {
-        let result = std::fs::create_dir_all(&results_dir)
-            .context("не удалось создать папку отчётов")
+    let logs_dir = paths.logs_dir.clone();
+    let logs_weak = window.as_weak();
+    window.on_open_logs(move || {
+        let result = std::fs::create_dir_all(&logs_dir)
+            .context("не удалось создать папку logs")
             .and_then(|_| {
-                let canonical = std::fs::canonicalize(&results_dir)
-                    .context("не удалось определить путь папки отчётов")?;
-                open::that_detached(canonical).context("не удалось открыть папку отчётов")
+                let canonical = std::fs::canonicalize(&logs_dir)
+                    .context("не удалось определить путь папки logs")?;
+                open::that_detached(canonical).context("не удалось открыть папку logs")
             });
         if let Err(error) = result
-            && let Some(window) = results_weak.upgrade()
+            && let Some(window) = logs_weak.upgrade()
         {
             window.set_error_text(error.to_string().into());
         }
@@ -484,9 +510,24 @@ fn drain_events(
             UiEvent::OperationFinished(result) => {
                 window.set_busy(false);
                 match result {
-                    Ok(running) => set_running_state(window, &tray.borrow(), running),
+                    Ok(running) => {
+                        set_running_state(window, &tray.borrow(), running);
+                        logging::write(
+                            &paths.logs_dir,
+                            "process",
+                            if running {
+                                "zapret запущен"
+                            } else {
+                                "zapret остановлен"
+                            },
+                        );
+                    }
                     Err(error) => {
-                        append_log(window, format!("Ошибка запуска: {error}"));
+                        logging::write(
+                            &paths.logs_dir,
+                            "process",
+                            format!("Ошибка запуска: {error}"),
+                        );
                         window.set_error_text(
                             error
                                 .lines()
@@ -553,7 +594,11 @@ fn drain_events(
                         if !paths.zapret_dir.join("service.bat").is_file() {
                             window.set_error_text(error.into());
                         } else {
-                            append_log(window, format!("Ошибка обновления: {error}"));
+                            logging::write(
+                                &paths.logs_dir,
+                                "updater",
+                                format!("Ошибка обновления: {error}"),
+                            );
                         }
                     }
                 }
@@ -570,9 +615,10 @@ fn drain_events(
                 window.set_test_current(current as i32);
                 window.set_test_total(total as i32);
             }
-            UiEvent::TestProgress(TestEvent::Log(line)) | UiEvent::Log(line) => {
-                append_log(window, line);
+            UiEvent::TestProgress(TestEvent::Log(line)) => {
+                logging::write(&paths.logs_dir, "test", line);
             }
+            UiEvent::Log(line) => logging::write(&paths.logs_dir, "app", line),
             UiEvent::TestFinished(result) => {
                 window.set_testing(false);
                 match result {
@@ -588,6 +634,11 @@ fn drain_events(
                             })
                             .cloned();
                         if let Some(selected) = selected {
+                            logging::write(
+                                &paths.logs_dir,
+                                "test",
+                                format!("Выбрана стратегия {}", selected.file_name),
+                            );
                             let mut settings = config.borrow().clone();
                             settings.selected_strategy = Some(selected.file_name.clone());
                             let _ = settings.save(paths);
@@ -613,6 +664,11 @@ fn drain_events(
                     }
                     Err(payload) => {
                         let (was_running, error) = split_test_payload(&payload);
+                        logging::write(
+                            &paths.logs_dir,
+                            "test",
+                            format!("Ошибка автоподбора: {error}"),
+                        );
                         window.set_error_text(error.into());
                         if was_running
                             && let Some(selected) = find_selected_strategy(
@@ -652,8 +708,7 @@ fn handle_tray_action(
     };
     match action {
         TrayAction::Open => {
-            let _ = window.show();
-            window.window().set_minimized(false);
+            show_main_window(window);
         }
         TrayAction::Toggle => {
             window.set_busy(true);
@@ -805,16 +860,9 @@ fn set_running_state(window: &MainWindow, tray: &TrayController, running: bool) 
     let _ = tray.set_running(running);
 }
 
-fn append_log(window: &MainWindow, line: String) {
-    let mut log = window.get_log_text().to_string();
-    if log.len() > 100_000 {
-        log.drain(..50_000);
-    }
-    if !log.is_empty() {
-        log.push('\n');
-    }
-    log.push_str(&line);
-    window.set_log_text(log.into());
+fn show_main_window(window: &MainWindow) {
+    let _ = window.show();
+    window.window().set_minimized(false);
 }
 
 fn split_test_payload(payload: &str) -> (bool, &str) {

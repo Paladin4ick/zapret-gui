@@ -112,3 +112,28 @@ export component NavButton inherits Rectangle {
         }
     }
 }
+
+export component WindowButton inherits Rectangle {
+    in property <image> icon;
+    in property <bool> danger: false;
+    in property <float> scale: 1;
+    callback clicked;
+    width: 38px * root.scale;
+    height: 30px * root.scale;
+    border-radius: 4px * root.scale;
+    background: area.pressed
+        ? (root.danger ? AppTheme.accent : AppTheme.outline)
+        : area.has-hover
+            ? (root.danger ? AppTheme.accent-hover : AppTheme.surface)
+            : transparent;
+    animate background { duration: 100ms; }
+    Image {
+        width: 14px * root.scale;
+        height: 14px * root.scale;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        source: root.icon;
+        image-fit: contain;
+    }
+    area := TouchArea { clicked => { root.clicked(); } }
+}

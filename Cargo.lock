@@ -6932,6 +6932,7 @@ dependencies = [
  "slint",
  "slint-build",
  "tray-icon",
+ "winapi",
  "winresource",
  "zip",
 ]

@@ -1,6 +1,8 @@
 pub mod auto_select;
 pub mod config;
+pub mod instance_signal;
 pub mod lists;
+pub mod logging;
 pub mod paths;
 pub mod process;
 pub mod startup;

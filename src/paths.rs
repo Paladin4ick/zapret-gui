@@ -6,6 +6,7 @@ pub struct AppPaths {
     pub app_dir: PathBuf,
     pub zapret_dir: PathBuf,
     pub config_file: PathBuf,
+    pub logs_dir: PathBuf,
 }
 
 impl AppPaths {
@@ -19,6 +20,7 @@ impl AppPaths {
         Ok(Self {
             zapret_dir: app_dir.join("zapret"),
             config_file: app_dir.join("zapret-gui.json"),
+            logs_dir: app_dir.join("logs"),
             app_dir,
         })
     }
@@ -28,6 +30,7 @@ impl AppPaths {
         Self {
             zapret_dir: app_dir.join("zapret"),
             config_file: app_dir.join("zapret-gui.json"),
+            logs_dir: app_dir.join("logs"),
             app_dir,
         }
     }

@@ -1,7 +1,8 @@
-use crate::{paths::AppPaths, strategy::Strategy};
+use crate::{logging, paths::AppPaths, strategy::Strategy};
 use anyhow::{Context, Result, bail};
 use std::{
     fs::{self, OpenOptions},
+    io::Write,
     path::Path,
     process::{Command, Stdio},
     thread,
@@ -37,13 +38,15 @@ impl ProcessManager {
         if !script.is_file() {
             bail!("файл стратегии не найден: {}", strategy.file_name);
         }
-        let log_path = self.paths.app_dir.join("zapret-launch.log");
-        let stdout = OpenOptions::new()
+        let log_path = self.paths.logs_dir.join("zapret-launch.log");
+        let log_start = logging::prepare_file(&log_path)?;
+        let mut stdout = OpenOptions::new()
             .create(true)
-            .write(true)
-            .truncate(true)
+            .append(true)
             .open(&log_path)
             .context("не удалось открыть журнал запуска zapret")?;
+        writeln!(stdout, "\n=== Запуск стратегии {} ===", strategy.file_name)?;
+        stdout.flush()?;
         let stderr = stdout
             .try_clone()
             .context("не удалось подготовить журнал ошибок zapret")?;
@@ -73,7 +76,10 @@ impl ProcessManager {
             thread::sleep(Duration::from_millis(200));
         }
         let details = fs::read(&log_path)
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .map(|bytes| {
+                let current = bytes.get(log_start as usize..).unwrap_or(&bytes);
+                String::from_utf8_lossy(current).into_owned()
+            })
             .unwrap_or_default();
         if let Some(status) = early_exit {
             bail!(

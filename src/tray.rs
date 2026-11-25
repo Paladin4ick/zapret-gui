@@ -1,7 +1,7 @@
 use crate::strategy::Strategy;
 use anyhow::{Context, Result};
 use tray_icon::{
-    Icon, TrayIcon, TrayIconBuilder,
+    Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent,
     menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu},
 };
 
@@ -84,6 +84,17 @@ impl TrayController {
     }
 
     pub fn poll(&self) -> Option<TrayAction> {
+        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+            if matches!(
+                event,
+                TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
+            ) {
+                return Some(TrayAction::Open);
+            }
+        }
         let event = MenuEvent::receiver().try_recv().ok()?;
         if event.id == self.toggle_id {
             return Some(TrayAction::Toggle);
